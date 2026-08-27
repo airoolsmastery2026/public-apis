@@ -1,0 +1,44 @@
+name: DHP API Hub
+
+on:
+  pull_request:
+    paths:
+      - 'dhp/**'
+      - '.github/workflows/dhp-api-hub.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'dhp/**'
+      - '.github/workflows/dhp-api-hub.yml'
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate curated registry
+        run: node dhp/validate.mjs
+      - name: Smoke-test safe discovery importer
+        run: |
+          node dhp/import-public-apis.mjs --output /tmp/dhp-public-api-candidates.json
+          node -e "const d=require('/tmp/dhp-public-api-candidates.json'); if(!d.candidateCount) process.exit(1); console.log('candidates', d.candidateCount)"
+
+  health:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Read-only health observation
+        run: node dhp/health-check.mjs --soft
